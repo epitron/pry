@@ -1,10 +1,34 @@
 class Pry
   module Helpers
     module Formatting
-      def self.tablify(things, screen_width)
+      class Table
+        attr_accessor :items
+        def initialize items; self.items = items end
+
+        def rows(args)
+          # TODO args[:columns]
+          Row.new(items)
+        end
+
+        class Row
+          attr_accessor :items
+          def initialize items; self.items = items end
+          def fits_within?(line_length)
+            only_visible = items.map{|t| Pry::Helpers::Text.strip_color(t)}
+            total = only_visible.join(Pry.config.ls.separator).size
+            total <= line_length
+          end
+        end
+      end
+
+      def self.tablify(things, line_length)
+        table = Table.new(things)
+        if table.rows(:columns => things.size).fits_within?(line_length)
+          return things.join(Pry.config.ls.separator)
+        end
         maximum_width = things.map{|t| Pry::Helpers::Text.strip_color(t).length}.max + Pry.config.ls.separator.length
-        maximum_width = screen_width if maximum_width > screen_width
-        columns = screen_width / maximum_width
+        maximum_width = line_length if maximum_width > line_length
+        columns = line_length / maximum_width
 
         things.each_slice(columns).map do |slice|
           slice.map do |s|
