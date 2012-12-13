@@ -29,45 +29,89 @@ describe "ls" do
   end
 
   describe 'Formatting Table' do
+    it 'recolumnizes' do
+      t = Pry::Helpers::Formatting::Table.new %w(a b c d e f)
+      t.column_count = 6
+      t.rows.should == [ %w(a b c d e f) ]
+      t.column_count = 1
+      t.rows.should == %w(a b c d e f).map{|e| [e]}
+      t.column_count = 3
+      t.rows.should == [%w(a c e), %w(b d f)]
+      t.column_count = 2
+      t.rows.should == [%w(a d), %w(b e), %w(c f)]
+    end
+
     it 'knows about colorized fitting' do
-      t = Pry::Helpers::Formatting::Table.new %w(hihi)
-      t.rows(:columns => 1).fits_within?(4).should == true
+      t = Pry::Helpers::Formatting::Table.new %w(hihi), :column_count => 1
+      t.fits_on_line?(4).should == true
       t.items = ["\e[33mhihi\e[0m"]
-      t.rows(:columns => 1).fits_within?(4).should == true
-      t.items = %w(hi hi)
-      t.rows(:columns => 1).fits_within?(4).should == false
+      t.fits_on_line?(4).should == true
       t.items = []
-      t.rows(:columns => 1).fits_within?(4).should == true
+      t.fits_on_line?(4).should == true
+
+      t.items = %w(hi hi)
+      t.fits_on_line?(4).should == true
+      t.column_count = 2
+      t.fits_on_line?(4).should == false
+
+      t.items = %w(
+        a   ccc
+        bb  dddd
+      ).sort
+      t.column_width(0).should == 2
+      t.column_width(1).should == 4
+      t.fits_on_line?(8).should == true
+      t.fits_on_line?(7).should == false
     end
   end
 
   describe 'formatting - should order downward and wrap to columns' do
     FAKE_COLUMNS = 62
-    def try_round_trip(text)
-      text.strip!
-      things = text.split(/\s+/)
+    def try_round_trip(expected)
+      things = expected.split(/\s+/).sort
       actual = Pry::Helpers::Formatting.tablify(things, FAKE_COLUMNS).strip
-      if actual != text
+      [expected, actual].each{|e| e.gsub! /\s+$/, ''}
+      if actual != expected
         bar = '-'*25
-        puts bar+'expected'+bar, text, bar+'actual'+bar, actual
+        puts \
+          bar+'expected'+bar,
+          expected,
+          bar+'actual'+bar,
+          actual
       end
-      actual.should == text
+      actual.should == expected
     end
 
     it 'should handle a tiny case' do
       try_round_trip(<<-EOT)
-asdf  fdass  asdf
+asdf  asfddd  fdass
       EOT
     end
 
-    #it 'should handle the basic case' do
-      #try_round_trip(<<-EOT)
-#aadd            ddasffssdad  sdsaadaasd      ssfasaafssd
-#adassdfffaasds  f            sdsfasddasfds   ssssdaa
-#assfsafsfsds    fsasa        ssdsssafsdasdf
-      #EOT
-    #end
+    it 'should handle the basic case' do
+      try_round_trip(<<-EOT)
+aadd            ddasffssdad  sdsaadaasd      ssfasaafssd
+adassdfffaasds  f            sdsfasddasfds   ssssdaa
+assfsafsfsds    fsasa        ssdsssafsdasdf
+      EOT
+    end
 
+    it 'should handle... another basic case' do
+      try_round_trip(<<-EOT)
+aaad            dddasaaaaaa     ffadsfafsaafa   ssdfssff
+aaadfasassdfff  dfsddffdddsdfd  ffssfsfafaadss
+aaddaafaf       dsfafdsfdfssda  fsddfff
+aas             dssdss          s
+adasadfaaffds   faadf           safdfdddsasd
+asddaadaaadfdd  fasfaafdssd     sasf
+asdsdaa         fdasfdfss       sddsa
+asfadsssaaad    fddsasadfssdss  sddsfsaa
+dasaasffaasf    fdsasad         ss
+ddadadassasdf   ff              ssas
+      EOT
+    end
+
+    # FIXME This is what it should actually look like:
     #it 'should handle... another basic case' do
       #try_round_trip(<<-EOT)
 #aaad            dasaasffaasf    fdasfdfss       safdfdddsasd
@@ -81,13 +125,14 @@ asdf  fdass  asdf
       #EOT
     #end
 
-    #it 'should handle empty input' do
-      #try_round_trip('')
-    #end
 
-    #it 'should handle one-token input' do
-      #try_round_trip('asdf')
-    #end
+    it 'should handle empty input' do
+      try_round_trip('')
+    end
+
+    it 'should handle one-token input' do
+      try_round_trip('asdf')
+    end
   end
 
   describe "help" do

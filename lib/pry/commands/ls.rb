@@ -1,43 +1,71 @@
 class Pry
   module Helpers
     module Formatting
-      class Table
-        attr_accessor :items
-        def initialize items; self.items = items end
+      def self.tablify(things, line_length)
+        table = Table.new(things, :column_count => things.size)
+        table.column_count -= 1 until 0 == table.column_count or
+          table.fits_on_line?(line_length)
+        table.to_s
+      end
 
-        def rows(args)
-          # TODO args[:columns]
-          Row.new(items)
+      class Table
+        attr_accessor :items, :column_count
+        def initialize items, args = {}
+          self.items = items
+          self.column_count = args[:column_count]
         end
 
-        class Row
-          attr_accessor :items
-          def initialize items; self.items = items end
-          def fits_within?(line_length)
-            only_visible = items.map{|t| Pry::Helpers::Text.strip_color(t)}
-            total = only_visible.join(Pry.config.ls.separator).size
-            total <= line_length
+        def to_s
+          rows_to_s.join("\n")
+        end
+
+        def rows_to_s
+          widths = columns.each_index.map{|e| column_width(e)}
+          rows.map do |r|
+            padded = []
+            r.each_with_index do |e,i|
+              padded << (e||'').ljust(widths[i])
+            end
+            padded.join(Pry.config.ls.separator)
           end
         end
-      end
 
-      def self.tablify(things, line_length)
-        table = Table.new(things)
-        if table.rows(:columns => things.size).fits_within?(line_length)
-          return things.join(Pry.config.ls.separator)
+        def fits_on_line? line_length
+          _max_visible_width(rows_to_s) <= line_length
         end
-        maximum_width = things.map{|t| Pry::Helpers::Text.strip_color(t).length}.max + Pry.config.ls.separator.length
-        maximum_width = line_length if maximum_width > line_length
-        columns = line_length / maximum_width
 
-        things.each_slice(columns).map do |slice|
-          slice.map do |s|
-            padding_width = maximum_width - Pry::Helpers::Text.strip_color(s).length
-            padding = Pry.config.ls.separator.ljust(padding_width, Pry.config.ls.separator)
-            s + padding
-          end.join("")
-        end.join("\n")
+        def columns
+          return [] if items.size.zero?
+          rows = items.size / column_count
+          [].tap do |a|
+            items.each_slice(rows){|e| a << e}
+          end
+        end
+
+        def rows
+          return [] if items.size.zero?
+          tallest_size = columns[0].size
+          evened_out = columns.map do |c|
+            c << nil until c.size == tallest_size
+            c
+          end
+          evened_out.transpose
+        end
+
+        def column_width n
+          _max_visible_width(columns[n])
+        end
+
+        def ==(other); items == other.to_a end
+        def to_a; items.to_a end
+
+        private
+        def _max_visible_width(things)
+          things.map{|t| Pry::Helpers::Text.strip_color(t).size}.max || 0
+        end
+
       end
+
     end
   end
 
