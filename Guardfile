@@ -11,9 +11,11 @@ module ::Guard
     def run_on_changes(paths)
       paths.delete('some_lib')
       if paths.size.zero?
+          warn 'Running all tests'
         system 'rake recspec'
       else
         paths.each do |path|
+          warn "Running #{path}"
           system "rake spec run=#{path}" or return
           warn "\e[32;1mNice!!\e[0m  Now running all specs, just to be sure."
           run_all
