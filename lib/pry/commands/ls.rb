@@ -9,11 +9,10 @@ class Pry
       end
 
       class Table
-        attr :items
-        attr_accessor :column_count
+        attr :items, :column_count
         def initialize items, args = {}
+          @column_count = args[:column_count]
           self.items = items
-          self.column_count = args[:column_count]
         end
 
         def to_s
@@ -21,8 +20,8 @@ class Pry
         end
 
         def rows_to_s style = :color_on
-          widths = columns.each_index.map{|e| column_width(e)}
-          rows.map do |r|
+          widths = columns.map{|e| _max_width(e)}
+          @rows_without_colors.map do |r|
             padded = []
             r.each_with_index do |e,i|
               next unless e
@@ -35,14 +34,15 @@ class Pry
         end
 
         def items= items
-          @items = []
-          @colorless_cache = {}
-          items.map do |e|
-            plain = Pry::Helpers::Text.strip_color(e)
-            @items << plain
-            @colorless_cache[plain] = e
-          end
+          @items = items
+          _rebuild_colorless_cache
+          _recolumn
           items
+        end
+
+        def column_count= n
+          @column_count = n
+          _recolumn
         end
 
         def fits_on_line? line_length
@@ -50,25 +50,7 @@ class Pry
         end
 
         def columns
-          return [] if items.size.zero?
-          rows = items.size / column_count
-          [].tap do |a|
-            items.each_slice(rows){|e| a << e}
-          end
-        end
-
-        def rows
-          return [] if items.size.zero?
-          tallest_size = columns[0].size
-          evened_out = columns.map do |c|
-            c << nil until c.size == tallest_size
-            c
-          end
-          evened_out.transpose
-        end
-
-        def column_width n
-          _max_width(columns[n])
+          @rows_without_colors.transpose
         end
 
         def ==(other); items == other.to_a end
@@ -76,7 +58,27 @@ class Pry
 
         private
         def _max_width(things)
-          things.map(&:size).max || 0
+          things.compact.map(&:size).max || 0
+        end
+
+        def _rebuild_colorless_cache
+          @colorless_cache = {}
+          @plain_items = []
+          items.map do |e|
+            plain = Pry::Helpers::Text.strip_color(e)
+            @colorless_cache[plain] = e
+            @plain_items << plain
+          end
+        end
+
+        def _recolumn
+          @rows_without_colors = []
+          return if items.size.zero?
+          row_count = (items.size.to_f/column_count).ceil
+          row_count.times do |i|
+            row_indices = (0...column_count).map{|e| row_count*e+i}
+            @rows_without_colors << row_indices.map{|e| @plain_items[e]}
+          end
         end
 
         def recall_color_for thing

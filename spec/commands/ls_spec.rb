@@ -29,18 +29,6 @@ describe "ls" do
   end
 
   describe 'Formatting Table' do
-    it 'recolumnizes' do
-      t = Pry::Helpers::Formatting::Table.new %w(a b c d e f)
-      t.column_count = 6
-      t.rows.should == [ %w(a b c d e f) ]
-      t.column_count = 1
-      t.rows.should == %w(a b c d e f).map{|e| [e]}
-      t.column_count = 3
-      t.rows.should == [%w(a c e), %w(b d f)]
-      t.column_count = 2
-      t.rows.should == [%w(a d), %w(b e), %w(c f)]
-    end
-
     it 'knows about colorized fitting' do
       t = Pry::Helpers::Formatting::Table.new %w(hihi), :column_count => 1
       t.fits_on_line?(4).should == true
@@ -56,8 +44,6 @@ describe "ls" do
         a   ccc
         bb  dddd
       ).sort
-      t.column_width(0).should == 2
-      t.column_width(1).should == 4
       t.fits_on_line?(8).should == true
       t.fits_on_line?(7).should == false
     end
@@ -95,33 +81,17 @@ assfsafsfsds    fsasa        ssdsssafsdasdf
     end
 
     it 'should handle... another basic case' do
-      try_round_trip(<<-eot)
-aaad            dddasaaaaaa     ffadsfafsaafa   ssdfssff
-aaadfasassdfff  dfsddffdddsdfd  ffssfsfafaadss
-aaddaafaf       dsfafdsfdfssda  fsddfff
-aas             dssdss          s
-adasadfaaffds   faadf           safdfdddsasd
-asddaadaaadfdd  fasfaafdssd     sasf
-asdsdaa         fdasfdfss       sddsa
-asfadsssaaad    fddsasadfssdss  sddsfsaa
-dasaasffaasf    fdsasad         ss
-ddadadassasdf   ff              ssas
-      eot
+      try_round_trip(<<-EOT)
+aaad            dasaasffaasf    fdasfdfss       safdfdddsasd
+aaadfasassdfff  ddadadassasdf   fddsasadfssdss  sasf
+aaddaafaf       dddasaaaaaa     fdsasad         sddsa
+aas             dfsddffdddsdfd  ff              sddsfsaa
+adasadfaaffds   dsfafdsfdfssda  ffadsfafsaafa   ss
+asddaadaaadfdd  dssdss          ffssfsfafaadss  ssas
+asdsdaa         faadf           fsddfff         ssdfssff
+asfadsssaaad    fasfaafdssd     s
+      EOT
     end
-
-    # FIXME This is what it should actually look like:
-    #it 'should handle... another basic case' do
-      #try_round_trip(<<-EOT)
-#aaad            dasaasffaasf    fdasfdfss       safdfdddsasd
-#aaadfasassdfff  ddadadassasdf   fddsasadfssdss  sasf
-#aaddaafaf       dddasaaaaaa     fdsasad         sddsa
-#aas             dfsddffdddsdfd  ff              sddsfsaa
-#adasadfaaffds   dsfafdsfdfssda  ffadsfafsaafa   ss
-#asddaadaaadfdd  dssdss          ffssfsfafaadss  ssas
-#asdsdaa         faadf           fsddfff         ssdfssff
-#asfadsssaaad    fasfaafdssd     s
-      #EOT
-    #end
 
     it 'should handle colors' do
       try_round_trip(<<-EOT)
