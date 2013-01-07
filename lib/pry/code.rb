@@ -32,24 +32,14 @@ class Pry
       # Instantiate a `Code` object containing code loaded from a file or
       # Pry's line buffer.
       #
-      # @param [String] fn The name of a file, or "(pry)".
+      # @param [String] filename The name of a file, or "(pry)".
       # @param [Symbol] code_type The type of code the file contains.
       # @return [Code]
-      def from_file(fn, code_type=type_from_filename(fn))
-        if fn == Pry.eval_path
+      def from_file(filename, code_type = type_from_filename(filename))
+        if filename == Pry.eval_path
           new(Pry.line_buffer.drop(1), 1, code_type)
         else
-          abs_path = [File.expand_path(fn, Dir.pwd),
-                      File.expand_path(fn, Pry::INITIAL_PWD)
-                     ].detect{ |abs_path| File.readable?(abs_path) }
-
-          unless abs_path
-            raise MethodSource::SourceNotFoundError, "Cannot open #{fn.inspect} for reading."
-          end
-
-          File.open(abs_path, 'r') do |f|
-            new(f, 1, code_type)
-          end
+          File.open(get_abs_path(filename), 'r') { |f| new(f, 1, code_type) }
         end
       end
 
@@ -83,36 +73,49 @@ class Pry
       end
 
       protected
-        # Guess the CodeRay type of a file from its extension, or nil if
-        # unknown.
-        #
-        # @param [String] filename
-        # @param [Symbol] default (:ruby) the file type to assume if none could be detected
-        # @return [Symbol, nil]
-        def type_from_filename(filename, default=:ruby)
-          map = {
-            %w(.c .h) => :c,
-            %w(.cpp .hpp .cc .h cxx) => :cpp,
-            %w(.rb .ru .irbrc .gemspec .pryrc) => :ruby,
-            %w(.py) => :python,
-            %w(.diff) => :diff,
-            %w(.css) => :css,
-            %w(.html) => :html,
-            %w(.yaml .yml) => :yaml,
-            %w(.xml) => :xml,
-            %w(.php) => :php,
-            %w(.js) => :javascript,
-            %w(.java) => :java,
-            %w(.rhtml) => :rhtml,
-            %w(.json) => :json
-          }
 
-          _, type = map.find do |k, _|
-            k.any? { |ext| ext == File.extname(filename) }
-          end
+      # Guess the CodeRay type of a file from its extension, or nil if
+      # unknown.
+      #
+      # @param [String] filename
+      # @param [Symbol] default (:ruby) the file type to assume if none could be detected
+      # @return [Symbol, nil]
+      def type_from_filename(filename, default=:ruby)
+        map = {
+          %w(.c .h) => :c,
+          %w(.cpp .hpp .cc .h cxx) => :cpp,
+          %w(.rb .ru .irbrc .gemspec .pryrc) => :ruby,
+          %w(.py) => :python,
+          %w(.diff) => :diff,
+          %w(.css) => :css,
+          %w(.html) => :html,
+          %w(.yaml .yml) => :yaml,
+          %w(.xml) => :xml,
+          %w(.php) => :php,
+          %w(.js) => :javascript,
+          %w(.java) => :java,
+          %w(.rhtml) => :rhtml,
+          %w(.json) => :json
+        }
 
-          type || default
+        _, type = map.find do |k, _|
+          k.any? { |ext| ext == File.extname(filename) }
         end
+
+        type || default
+      end
+
+      # @param [String] filename
+      # @raise [MethodSource::SourceNotFoundError] if the +filename+ is not
+      #   readable for some reason.
+      # @return [String] absolute path for the given +filename+.
+      def get_abs_path(filename)
+        abs_path = [File.expand_path(filename, Dir.pwd),
+                    File.expand_path(filename, Pry::INITIAL_PWD)
+                   ].detect { |abs_path| File.readable?(abs_path) }
+        abs_path or raise MethodSource::SourceNotFoundError,
+                          "Cannot open #{filename.inspect} for reading."
+      end
     end
 
     # @return [Symbol] The type of code stored in this wrapper.
@@ -168,26 +171,8 @@ class Pry
     def between(start_line, end_line=nil)
       return self unless start_line
 
-      if start_line.is_a? Range
-        end_line = start_line.last
-        end_line -= 1 if start_line.exclude_end?
-
-        start_line = start_line.first
-      else
-        end_line ||= start_line
-      end
-
-      if start_line > 0
-        start_idx = @lines.index { |l| l.last >= start_line } || @lines.length
-      else
-        start_idx = start_line
-      end
-
-      if end_line > 0
-        end_idx = (@lines.index { |l| l.last > end_line } || 0) - 1
-      else
-        end_idx = end_line
-      end
+      start_line, end_line = reform_start_and_end_lines(start_line, end_line)
+      start_idx,  end_idx  = start_and_end_indices(start_line, end_line)
 
       alter do
         @lines = @lines[start_idx..end_idx] || []
@@ -303,44 +288,16 @@ class Pry
       Object.instance_method(:to_s).bind(self).call
     end
 
-    # Based on the configuration of the object, return a formatted String
-    # representation.
-    #
-    # @return [String]
+    # @return [String] a formatted representation (based on the configuration of
+    #   the object).
     def to_s
-      lines = @lines.map(&:dup)
-
-      if Pry.color
-        lines.each do |l|
-          l[0] = CodeRay.scan(l[0], @code_type).term
-        end
+      lines = @lines.map(&:dup).each do |line|
+        add_color(line)        if Pry.color
+        add_line_numbers(line) if @with_line_numbers
+        add_marker(line)       if @with_marker
+        add_indentation(line)  if @with_indentation
       end
-
-      if @with_line_numbers
-        max_width = lines.last.last.to_s.length if lines.length > 0
-        lines.each do |l|
-          padded_line_num = l[1].to_s.rjust(max_width)
-          l[0] = "#{Pry::Helpers::BaseHelpers.colorize_code(padded_line_num.to_s)}: #{l[0]}"
-        end
-      end
-
-      if @with_marker
-        lines.each do |l|
-          if l[1] == @marker_line_num
-            l[0] = " => #{l[0]}"
-          else
-            l[0] = "    #{l[0]}"
-          end
-        end
-      end
-
-      if @with_indentation
-        lines.each do |l|
-          l[0] = "#{' ' * @indentation_num}#{l[0]}"
-        end
-      end
-
-      lines.map { |l| "#{l.first}\n" }.join
+      lines.map { |line| "#{ line[0] }\n" }.join
     end
 
     # Get the comment that describes the expression on the given line number.
@@ -405,10 +362,77 @@ class Pry
     undef =~
 
     protected
-      # An abstraction of the `dup.instance_eval` pattern used throughout this
-      # class.
-      def alter(&blk)
-        dup.tap { |o| o.instance_eval(&blk) }
+
+    # An abstraction of the `dup.instance_eval` pattern used throughout this
+    # class.
+    def alter(&blk)
+      dup.tap { |o| o.instance_eval(&blk) }
+    end
+
+    def add_color(line_tuple)
+      line_tuple[0] = CodeRay.scan(line_tuple[0], @code_type).term
+    end
+
+    def add_line_numbers(line_tuple)
+      max_width = @lines.last.last.to_s.length if @lines.length > 0
+      padded_line_num = line_tuple[1].to_s.rjust(max_width || 0)
+      line_tuple[0] =
+        "#{ Pry::Helpers::BaseHelpers.colorize_code(padded_line_num.to_s) }: " \
+        "#{ line_tuple[0] }"
+    end
+
+    def add_marker(line_tuple)
+      line_tuple[0] = if line_tuple[1] == @marker_line_num
+                        " => #{ line_tuple[0] }"
+                      else
+                        "    #{ line_tuple[0] }"
+                      end
+    end
+
+    def add_indentation(line_tuple)
+      line_tuple[0] = "#{ ' ' * @indentation_num }#{ line_tuple[0] }"
+    end
+
+    # If +end_line+ is `nil`, then assign to it +start_line+.
+    # @param [Integer, Range] start_line
+    # @param [Integer] end_line
+    # @return [Array<Integer>]
+    def reform_start_and_end_lines(start_line, end_line)
+      if start_line.is_a?(Range)
+        get_start_and_end_from_range(start_line)
+      else
+        end_line ||= start_line
+        [start_line, end_line]
       end
+    end
+
+    # @param [Integer] start_line
+    # @param [Integer] end_line
+    # @return [Array<Integer>]
+    def start_and_end_indices(start_line, end_line)
+      return find_start_index(start_line), find_end_index(end_line)
+    end
+
+    # @param [Integer] start_line
+    # @return [Integer]
+    def find_start_index(start_line)
+      return start_line if start_line < 0
+      @lines.index { |l| l.last >= start_line } || @lines.length
+    end
+
+    # @param [Integer] end_line
+    # @return [Integer]
+    def find_end_index(end_line)
+      return end_line if end_line < 0
+      (@lines.index { |l| l.last > end_line } || 0) - 1
+    end
+
+    # @param [Range] range
+    # @return [Array<Integer>]
+    def get_start_and_end_from_range(range)
+      end_line = range.last
+      end_line -= 1 if range.exclude_end?
+      [range.first, end_line]
+    end
   end
 end

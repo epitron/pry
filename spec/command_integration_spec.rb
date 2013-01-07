@@ -230,10 +230,10 @@ describe "commands" do
 
   describe "Pry#run_command" do
     it 'should run a command in a specified context' do
-      b = Pry.binding_for(7)
+      b = Pry.binding_for('seven')
       p = Pry.new(:output => @str_output)
       p.run_command("ls -m", "", b)
-      p.output.string.should =~ /divmod/
+      p.output.string.should =~ /downcase/
     end
 
     it 'should run a command that modifies the passed in eval_string' do
@@ -408,7 +408,7 @@ describe "commands" do
   it 'should create a command in a nested context and that command should be accessible from the parent' do
     x = "@x=nil\ncd 7\n_pry_.commands.instance_eval {\ncommand('bing') { |arg| run arg }\n}\ncd ..\nbing ls\nexit-all"
     redirect_pry_io(StringIO.new("@x=nil\ncd 7\n_pry_.commands.instance_eval {\ncommand('bing') { |arg| run arg }\n}\ncd ..\nbing ls\nexit-all"), @str_output) do
-      Pry.new.repl(0)
+      Pry.new.repl('0')
     end
 
     @str_output.string.should =~ /@x/

@@ -23,6 +23,13 @@ describe Pry::WrappedModule do
         end
 
         class ForeverAlone
+          class DoublyNested
+            # nested docs
+            class TriplyNested
+              def nested_method
+              end
+            end
+          end
         end
       end
     end
@@ -83,6 +90,11 @@ describe Pry::WrappedModule do
       it 'should return source for third ranked candidate' do
         Pry::WrappedModule(Host::CandidateTest).candidate(2).source.should =~ /test6/
       end
+
+      it 'should return source for deeply nested class' do
+        Pry::WrappedModule(Host::ForeverAlone::DoublyNested::TriplyNested).source.should =~ /nested_method/
+        Pry::WrappedModule(Host::ForeverAlone::DoublyNested::TriplyNested).source.lines.count.should == 4
+      end
     end
 
     describe "doc" do
@@ -101,6 +113,10 @@ describe Pry::WrappedModule do
 
       it 'should return doc for third ranked candidate' do
         Pry::WrappedModule(Host::CandidateTest).candidate(2).doc.should =~ /rank 2/
+      end
+
+      it 'should return docs for deeply nested class' do
+        Pry::WrappedModule(Host::ForeverAlone::DoublyNested::TriplyNested).doc.should =~ /nested docs/
       end
     end
 
@@ -221,6 +237,25 @@ describe Pry::WrappedModule do
         m = Pry::WrappedModule(@m1)
         m.super(0).should == m
       end
+    end
+  end
+
+  describe ".from_str" do
+    it 'should lookup a constant' do
+      m = Pry::WrappedModule.from_str("Host::CandidateTest", binding)
+      m.wrapped.should == Host::CandidateTest
+    end
+
+    it 'should lookup a local' do
+      local = Host::CandidateTest
+      m = Pry::WrappedModule.from_str("local", binding)
+      m.wrapped.should == Host::CandidateTest
+    end
+
+    it 'should lookup an ivar' do
+      @ivar = Host::CandidateTest
+      m = Pry::WrappedModule.from_str("@ivar", binding)
+      m.wrapped.should == Host::CandidateTest
     end
   end
 end

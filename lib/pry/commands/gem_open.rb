@@ -1,7 +1,8 @@
 class Pry
-  Pry::Commands.create_command "gem-open" do |gem|
+  class Command::GemOpen < Pry::ClassCommand
+    match 'gem-open'
     group 'Gems'
-    description "Opens the working directory of the gem in your editor"
+    description 'Opens the working directory of the gem in your editor'
     command_options :argument_required => true
 
     banner <<-BANNER
@@ -13,7 +14,7 @@ class Pry
 
     def process(gem)
       Dir.chdir(gem_spec(gem).full_gem_path) do
-        invoke_editor(".", 0, false)
+        Pry::Editor.invoke_editor(".", 0, false)
       end
     end
 
@@ -21,4 +22,6 @@ class Pry
       gem_complete(str)
     end
   end
+
+  Pry::Commands.add_command(Pry::Command::GemOpen)
 end
