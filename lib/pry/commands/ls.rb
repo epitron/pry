@@ -9,7 +9,8 @@ class Pry
       end
 
       class Table
-        attr_accessor :items, :column_count
+        attr :items
+        attr_accessor :column_count
         def initialize items, args = {}
           self.items = items
           self.column_count = args[:column_count]
@@ -19,19 +20,33 @@ class Pry
           rows_to_s.join("\n")
         end
 
-        def rows_to_s
+        def rows_to_s style = :color_on
           widths = columns.each_index.map{|e| column_width(e)}
           rows.map do |r|
             padded = []
             r.each_with_index do |e,i|
-              padded << (e||'').ljust(widths[i])
+              next unless e
+              item = e.ljust(widths[i])
+              item.sub! e, recall_color_for(e) if :color_on == style
+              padded << item
             end
             padded.join(Pry.config.ls.separator)
           end
         end
 
+        def items= items
+          @items = []
+          @colorless_cache = {}
+          items.map do |e|
+            plain = Pry::Helpers::Text.strip_color(e)
+            @items << plain
+            @colorless_cache[plain] = e
+          end
+          items
+        end
+
         def fits_on_line? line_length
-          _max_visible_width(rows_to_s) <= line_length
+          _max_width(rows_to_s :no_color) <= line_length
         end
 
         def columns
@@ -53,17 +68,20 @@ class Pry
         end
 
         def column_width n
-          _max_visible_width(columns[n])
+          _max_width(columns[n])
         end
 
         def ==(other); items == other.to_a end
         def to_a; items.to_a end
 
         private
-        def _max_visible_width(things)
-          things.map{|t| Pry::Helpers::Text.strip_color(t).size}.max || 0
+        def _max_width(things)
+          things.map(&:size).max || 0
         end
 
+        def recall_color_for thing
+          @colorless_cache[thing]
+        end
       end
 
     end

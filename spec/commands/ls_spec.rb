@@ -44,8 +44,6 @@ describe "ls" do
     it 'knows about colorized fitting' do
       t = Pry::Helpers::Formatting::Table.new %w(hihi), :column_count => 1
       t.fits_on_line?(4).should == true
-      t.items = ["\e[33mhihi\e[0m"]
-      t.fits_on_line?(4).should == true
       t.items = []
       t.fits_on_line?(4).should == true
 
@@ -83,21 +81,21 @@ describe "ls" do
     end
 
     it 'should handle a tiny case' do
-      try_round_trip(<<-EOT)
+      try_round_trip(<<-eot)
 asdf  asfddd  fdass
-      EOT
+      eot
     end
 
     it 'should handle the basic case' do
-      try_round_trip(<<-EOT)
+      try_round_trip(<<-eot)
 aadd            ddasffssdad  sdsaadaasd      ssfasaafssd
 adassdfffaasds  f            sdsfasddasfds   ssssdaa
 assfsafsfsds    fsasa        ssdsssafsdasdf
-      EOT
+      eot
     end
 
     it 'should handle... another basic case' do
-      try_round_trip(<<-EOT)
+      try_round_trip(<<-eot)
 aaad            dddasaaaaaa     ffadsfafsaafa   ssdfssff
 aaadfasassdfff  dfsddffdddsdfd  ffssfsfafaadss
 aaddaafaf       dsfafdsfdfssda  fsddfff
@@ -108,7 +106,7 @@ asdsdaa         fdasfdfss       sddsa
 asfadsssaaad    fddsasadfssdss  sddsfsaa
 dasaasffaasf    fdsasad         ss
 ddadadassasdf   ff              ssas
-      EOT
+      eot
     end
 
     # FIXME This is what it should actually look like:
@@ -125,6 +123,12 @@ ddadadassasdf   ff              ssas
       #EOT
     #end
 
+    it 'should handle colors' do
+      try_round_trip(<<-EOT)
+\e[31maaaaaaaaaa\e[0m                      \e[31mccccccccccccccccccccccccccccc\e[0m
+\e[31mbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\e[0m  \e[31mddddddddddddd\e[0m
+      EOT
+    end
 
     it 'should handle empty input' do
       try_round_trip('')
