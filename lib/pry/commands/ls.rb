@@ -9,7 +9,7 @@ class Pry
       end
 
       class Table
-        attr :items, :column_count
+        attr_reader :items, :column_count
         def initialize items, args = {}
           @column_count = args[:column_count]
           self.items = items
